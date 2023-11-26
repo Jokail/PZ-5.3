@@ -14,8 +14,20 @@ public class BlockingStack<T> {
     private final Condition isEmpty = locker.newCondition();
 
     public void push(T task) {
-
-        stack.push(task);
+        locker.lock();
+        try {
+            while (stack.size() == CAPACITY) {
+                isFull.await();
+            }
+            stack.push(task);
+            System.out.printf("element %s was add \n", task );
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            isFull.signalAll();
+            isEmpty.signalAll();
+            locker.unlock();
+        }
 
     }
 
@@ -25,11 +37,13 @@ public class BlockingStack<T> {
             while (stack.isEmpty()) {
                 isEmpty.await();
             }
-            System.out.println("element was pop");
-            return stack.pop();
+            T element = stack.pop();
+            System.out.printf("element %s was pop\n", element);
+            return element;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
+            isFull.signalAll();
             isEmpty.signalAll();
             locker.unlock();
         }

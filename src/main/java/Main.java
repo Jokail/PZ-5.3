@@ -3,9 +3,6 @@ import produserCustomer.PrinterServer;
 import produserCustomer.User;
 import threadSafe.BlockingStack;
 
-import java.util.Objects;
-import java.util.Random;
-import java.util.concurrent.locks.Lock;
 import java.util.stream.IntStream;
 
 import static lifeCycle.PrintLifeCycle.printThreadState;
@@ -13,24 +10,28 @@ import static lifeCycle.PrintLifeCycle.printThreadState;
 public class Main {
 
     static Thread lifeCycle;
+    static final Object lock = 1;
 
 
     public static void main(String[] args) throws InterruptedException {
-
-        blockingStack();
-
+        lifeCycleThread();
     }
 
     static void blockingStack() {
 
         BlockingStack<Integer> integerBlockingStack = new BlockingStack<>();
-        Runnable adder = () -> IntStream.of(new Random().nextInt(1,10)).forEach(integerBlockingStack::push);
-        Runnable remover = () -> IntStream.of(5).forEach(value -> integerBlockingStack.pop());
-        Runnable remover2 = () -> IntStream.of(5).forEach(value -> integerBlockingStack.pop());
+        Runnable adder = () -> IntStream.rangeClosed(1, 10).forEach(integerBlockingStack::push);
+
+        Runnable remover = () -> IntStream.rangeClosed(1, 5).forEach(value -> {
+            integerBlockingStack.pop();
+        });
+        Runnable remover2 = () -> IntStream.rangeClosed(1, 5).forEach(value -> {
+            integerBlockingStack.pop();
+        });
 
         new Thread(adder).start();
-        new Thread(remover2).start();
         new Thread(remover).start();
+        new Thread(remover2).start();
 
     }
 
@@ -52,23 +53,70 @@ public class Main {
 
     }
 
-    static void lifeCycle() throws InterruptedException {
+    static void lifeCycleThread() throws InterruptedException {
 
-        Thread threadByBlocked = new Thread(() -> {
+        Thread threadToBlockTheMainThread = new Thread(() -> {
+            toDoSomeJobForBlocked();
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            toDoSomeJobForWaiting();
         });
-        threadByBlocked.start();
+        threadToBlockTheMainThread.start();
 
         lifeCycle = new Thread(() -> {
-        });
+            toDoSomeJobForBlocked();
 
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            toDoSomeJobForWaiting();
+        });
         printThreadState(lifeCycle);
+
         lifeCycle.start();
         printThreadState(lifeCycle);
 
-        Thread.sleep(200);
-
+        Thread.sleep(100);
         printThreadState(lifeCycle);
 
+
+        Thread.sleep(200);
+        printThreadState(lifeCycle);
+
+        Thread.sleep(700);
+        printThreadState(lifeCycle);
+
+        Thread.sleep(500);
+        printThreadState(lifeCycle);
+
+    }
+
+    static private synchronized void toDoSomeJobForBlocked() {
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    static private void toDoSomeJobForWaiting() {
+        synchronized (lock){
+            try {
+                if (Thread.currentThread() == lifeCycle) {
+                    lock.wait();
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            lock.notifyAll();
+        }
     }
 
 }
